@@ -121,7 +121,7 @@ footer .dua{font-size:14px;margin:4px 16px 0;color:var(--muted)}
 .mp-top{position:relative;display:flex;justify-content:center;align-items:flex-end;height:19px}
 .mp-eq{display:flex;align-items:flex-end;gap:2px;height:18px}
 .mp-eq i{width:3px;height:18px;background:#f6e7df;opacity:.9;transform-origin:bottom;transform:scaleY(var(--h))}
-.mp-eq i{transition:transform .14s ease-out}
+.mp-eq i{transition:transform .38s cubic-bezier(.3,.7,.3,1)}
 @keyframes eqb{from{transform:scaleY(calc(var(--h)*.35))}to{transform:scaleY(1)}}
 .mp-heart{position:absolute;right:-2px;bottom:-2px}
 .mp-bar{position:relative;height:14px;margin-top:4px;cursor:pointer;touch-action:none}
@@ -330,7 +330,7 @@ function autoPlay(){if(autoDone||userTouched)return;const s=draft||S,au=ensureAu
   if(au){if(playing)toggleMusic();if(au.paused){try{const pr=au.play();if(pr&&pr.then)pr.then(()=>{autoDone=true;updatePlayer()}).catch(()=>{});else autoDone=!au.paused}catch(e){}}else autoDone=true}
   else{if(!playing)toggleMusic();if(ac&&ac.state!=='running'){try{ac.resume().then(()=>{if(ac.state==='running'){autoDone=true;updatePlayer()}})}catch(e){}}else if(playing)autoDone=true}
   updatePlayer()}
-const gesture=e=>{if(e&&e.target&&e.target.closest&&e.target.closest('#mp,.panel,.edit'))return;autoPlay()};
+const gesture=e=>{if(e&&e.target&&e.target.closest&&e.target.closest('#mp,.panel,.edit'))return;autoPlay();if(e&&e.type!=='keydown'&&e.isTrusted)attachAnalyser()};
 ['touchstart','touchend','pointerdown','pointerup','click','keydown'].forEach(t=>{window.addEventListener(t,gesture,{capture:true,passive:true});document.addEventListener(t,gesture,{capture:true,passive:true})});
 setTimeout(()=>{try{ensureAudio(S)}catch(e){}},300);
 /* try to start as soon as the invitation opens (allowed on some browsers); otherwise the first touch starts it */
@@ -500,15 +500,28 @@ const mmss=x=>{x=Math.max(0,Math.floor(x||0));return Math.floor(x/60)+':'+String
 function isPlaying(){return audio&&!audio.paused?true:playing}
 function mpPos(){if(audio&&audioSrc)return[audio.currentTime||0,audio.duration||0];return[(step%melStarts.total)*BEAT,loopLen()]}
 function mpPaint(){const[c,d]=mpPos(),p=d?Math.min(1,c/d)*100:0,f=$('#mpFill'),o=$('#mpDot');if(!f)return;f.style.width=p+'%';o.style.left=p+'%';$('#mpCur').textContent=mmss(c);$('#mpDur').textContent=mmss(d)}
-let eqT=null;function eqRun(on){clearInterval(eqT);const bars=document.querySelectorAll('.mp-eq i');if(!on){bars.forEach(b=>b.style.transform='');return}
-  eqT=setInterval(()=>bars.forEach(b=>{const r=Math.random();b.style.transform='scaleY('+(r<.15?.12+Math.random()*.15:.2+Math.random()*.8).toFixed(2)+')'}),130)}
+let eqT=null,eqRaf=0,actx=null,anl=null,anlEl=null,fbuf=null,eqLast=0;
+function attachAnalyser(){try{const au=audio;if(!au||!audioSrc)return;
+  if(!actx){const C=window.AudioContext||window.webkitAudioContext;if(!C)return;actx=new C()}
+  if(actx.state!=='running')actx.resume();
+  if(anlEl!==au){const src=actx.createMediaElementSource(au);anl=actx.createAnalyser();anl.fftSize=256;anl.smoothingTimeConstant=.88;src.connect(anl);anl.connect(actx.destination);anlEl=au;fbuf=new Uint8Array(anl.frequencyBinCount)}}catch(e){anl=null}}
+function eqRun(on){clearInterval(eqT);cancelAnimationFrame(eqRaf);const bars=[...document.querySelectorAll('.mp-eq i')];
+  if(!on){bars.forEach(b=>b.style.transform='');return}
+  const n=bars.length;
+  const live=()=>anl&&anlEl===audio&&actx&&actx.state==='running'&&audio&&!audio.paused;
+  const step=t=>{eqRaf=requestAnimationFrame(step);if(t-eqLast<110)return;eqLast=t;
+    if(live()){anl.getByteFrequencyData(fbuf);const L=fbuf.length*.7;
+      bars.forEach((b,k)=>{const mid=Math.abs(k-(n-1)/2)/((n-1)/2);const a=Math.floor(Math.pow(mid,1.4)*L*.75+1),bnd=Math.max(1,Math.floor(L/n));let s=0;for(let q=a;q<a+bnd&&q<fbuf.length;q++)s+=fbuf[q];
+        const v=Math.min(1,Math.max(.1,Math.pow(s/bnd/255,1.2)*1.1*(1+mid*1.6)));b.style.transform='scaleY('+v.toFixed(2)+')'})}
+    else if(t-(step.r||0)>420){step.r=t;bars.forEach(b=>{b.style.transform='scaleY('+(.2+Math.random()*.75).toFixed(2)+')'})}};
+  eqRaf=requestAnimationFrame(step)}
 function updatePlayer(){const p=$('#mp');if(!p)return;const on=isPlaying(),b=$('#mpPlay');p.classList.toggle('on',on);eqRun(on);b.innerHTML=on?MPI.pause:MPI.play;b.setAttribute('aria-label',on?'إيقاف الموسيقى':'تشغيل الموسيقى');
   clearInterval(pTimer);mpPaint();if(on)pTimer=setInterval(mpPaint,250)}
 function dataToBlobUrl(d){try{const i=d.indexOf(','),meta=d.slice(5,i),bin=atob(d.slice(i+1)),u=new Uint8Array(bin.length);for(let k=0;k<bin.length;k++)u[k]=bin.charCodeAt(k);return URL.createObjectURL(new Blob([u],{type:meta.split(';')[0]||'audio/mpeg'}))}catch(e){return d}}
 function ensureAudio(s){if(!s.song)return null;if(!audio||audioSrc!==s.song){if(audio){audio.pause();audio.remove()}
   audio=document.createElement('audio');audio.setAttribute('playsinline','');audio.preload='auto';audio.loop=mpLoop;audio.style.display='none';audio.src=dataToBlobUrl(s.song);audioSrc=s.song;document.body.appendChild(audio);
   audio.onplay=audio.onpause=audio.onended=updatePlayer;audio.onloadedmetadata=mpPaint;try{audio.load()}catch(e){}}return audio}
-function togglePlay(){const s=draft||S,au=ensureAudio(s);
+function togglePlay(){const s=draft||S,au=ensureAudio(s);attachAnalyser();
   if(au){if(playing)toggleMusic();if(au.paused){const pr=au.play();if(pr&&pr.catch)pr.catch(()=>{})}else au.pause()}
   else{if(audio&&!audio.paused)audio.pause();toggleMusic()}
   updatePlayer()}
