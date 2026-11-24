@@ -452,19 +452,19 @@ function renderRsvp(){rvDirty=true;requestAnimationFrame(rvRun);
   const has=!!waNum(s.whatsapp);
   box.innerHTML=`<form id="rf" novalidate>
   <div><label for="rName">الاسم</label><input id="rName" autocomplete="name" value="${esc(rsvp.name)}" placeholder="اكتب/ي اسمك"></div>
-  <div><label for="rMsg">رسالة تودّ إيصالها للعروسين</label><textarea id="rMsg" maxlength="${MSGMAX}" placeholder="اكتب/ي رسالتك هنا">${esc(rsvp.msg)}</textarea><span class="cnt" id="rCnt">${rsvp.msg.length} / ${MSGMAX}</span></div>
+  <div><label for="rMsg">رسالة تودّ إيصالها للعروسين</label><textarea id="rMsg" placeholder="اكتب/ي رسالتك هنا">${esc(rsvp.msg)}</textarea></div>
   <p class="err" id="rErr"></p>
   <button class="btn" id="rSend" type="button">إرسال الرسالة</button>
   </form>`;
   const upd=()=>{const a=$('#rSend');if(a)a.href=rsvpLink()||'#'};
   $('#rName').oninput=e=>{rsvp.name=e.target.value;$('#rErr').textContent='';upd()};
-  const grow=t=>{t.style.height='auto';t.style.height=Math.max(96,t.scrollHeight+2)+'px'};grow($('#rMsg'));$('#rMsg').oninput=e=>{grow(e.target);rsvp.msg=e.target.value.slice(0,MSGMAX);const c=$('#rCnt');c.textContent=rsvp.msg.length+' / '+MSGMAX;c.classList.toggle('full',rsvp.msg.length>=MSGMAX);$('#rErr').textContent='';upd()};
+  const grow=t=>{t.style.height='auto';t.style.height=Math.max(96,t.scrollHeight+2)+'px'};grow($('#rMsg'));$('#rMsg').oninput=e=>{grow(e.target);rsvp.msg=e.target.value;$('#rErr').textContent='';upd()};
   const send=$('#rSend');if(send){send.onclick=async e=>{e.preventDefault();const err=$('#rErr');
     if(!rsvp.name.trim()){err.textContent='فضلًا اكتب/ي اسمك';$('#rName').focus();return}
     if(!rsvp.msg.trim()){err.textContent='فضلًا اكتب/ي رسالتك';$('#rMsg').focus();return}
     const c=dbCfg();if(!c){err.textContent='عذرًا، الإرسال غير متاح حاليًا';return}
     send.disabled=true;send.textContent='جاري الإرسال…';err.textContent='';
-    let ok=false;try{const r=await fetch(c.u+'/rest/v1/messages',{method:'POST',headers:Object.assign({apikey:c.k,'Content-Type':'application/json',Prefer:'return=minimal'},c.k.startsWith('sb_')?{}:{Authorization:'Bearer '+c.k}),body:JSON.stringify({name:rsvp.name.trim().slice(0,80),message:rsvp.msg.trim().slice(0,MSGMAX)})});ok=r.ok}catch(_){ok=false}
+    let ok=false;try{const r=await fetch(c.u+'/rest/v1/messages',{method:'POST',headers:Object.assign({apikey:c.k,'Content-Type':'application/json',Prefer:'return=minimal'},c.k.startsWith('sb_')?{}:{Authorization:'Bearer '+c.k}),body:JSON.stringify({name:rsvp.name.trim().slice(0,80),message:rsvp.msg.trim()})});ok=r.ok}catch(_){ok=false}
     if(ok){rsvp.sent=true;rsvp.msg='';renderRsvp();return}
     send.disabled=false;send.textContent='إرسال الرسالة';err.textContent='تعذّر الإرسال، حاول/ي مرة أخرى بعد قليل'}}
 }

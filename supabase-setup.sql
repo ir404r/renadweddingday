@@ -5,7 +5,7 @@ create table if not exists public.messages (
   id bigint generated always as identity primary key,
   created_at timestamptz not null default now(),
   name text not null check (char_length(name) between 1 and 80),
-  message text not null check (char_length(message) between 1 and 600)
+  message text not null check (char_length(message) >= 1)
 );
 
 alter table public.messages enable row level security;
