@@ -311,7 +311,7 @@ function admCheck(){if(location.hash==='#admin'){admTok?admLoad():admLogin()}}
 window.addEventListener('hashchange',admCheck);setTimeout(admCheck,50);
 
 /* start music automatically on the guest's first interaction (tap on "تفاصيل الدعوة", a tap, or scrolling down) */
-let autoDone=false,userTouched=false;
+let autoDone=false,userTouched=false,userTouchedPause=false;
 function autoPlay(){if(autoDone||userTouched)return;const s=draft||S,au=ensureAudio(s);
   if(au){if(playing)toggleMusic();if(au.paused){try{const pr=au.play();if(pr&&pr.then)pr.then(()=>{autoDone=true;updatePlayer()}).catch(()=>{});else autoDone=!au.paused}catch(e){}}else autoDone=true}
   else{if(!playing)toggleMusic();if(ac&&ac.state!=='running'){try{ac.resume().then(()=>{if(ac.state==='running'){autoDone=true;updatePlayer()}})}catch(e){}}else if(playing)autoDone=true}
@@ -319,6 +319,15 @@ function autoPlay(){if(autoDone||userTouched)return;const s=draft||S,au=ensureAu
 const gesture=e=>{if(e&&e.target&&e.target.closest&&e.target.closest('#mp,.panel,.edit'))return;autoPlay()};
 ['touchstart','touchend','pointerdown','pointerup','click','keydown'].forEach(t=>{window.addEventListener(t,gesture,{capture:true,passive:true});document.addEventListener(t,gesture,{capture:true,passive:true})});
 setTimeout(()=>{try{ensureAudio(S)}catch(e){}},300);
+/* try to start as soon as the invitation opens (allowed on some browsers); otherwise the first touch starts it */
+setTimeout(()=>{try{autoPlay()}catch(e){}},600);
+/* pause when the guest leaves the page or switches apps; resume when they come back */
+let bgPaused=false;
+function bgPause(){if(isPlaying()){bgPaused=true;if(audio&&!audio.paused)audio.pause();if(playing)toggleMusic();updatePlayer()}}
+function bgResume(){if(bgPaused&&!userTouchedPause){bgPaused=false;const s=draft||S,au=ensureAudio(s);if(au){const pr=au.play();if(pr&&pr.catch)pr.catch(()=>{})}else if(!playing)toggleMusic();updatePlayer()}}
+document.addEventListener('visibilitychange',()=>{document.hidden?bgPause():bgResume()});
+window.addEventListener('pagehide',bgPause);window.addEventListener('blur',()=>{if(document.hidden)bgPause()});
+
 window.addEventListener('scroll',()=>{if(window.scrollY>60)autoPlay()},{passive:true});
 
 /* scroll-linked reveal: content fades in as you scroll down, fades out as you scroll back up */
@@ -488,7 +497,7 @@ function togglePlay(){const s=draft||S,au=ensureAudio(s);
 function mpRestart(){if(audio&&audioSrc){audio.currentTime=0}else{step=0;if(playing&&ac)nextT=ac.currentTime+.05}mpPaint()}
 function mpSeek(frac){if(audio&&audioSrc&&audio.duration){audio.currentTime=frac*audio.duration}else{step=Math.floor(frac*melStarts.total);if(playing&&ac)nextT=ac.currentTime+.05}mpPaint()}
 function bindPlayer(){const $b=id=>document.getElementById(id);if(!$b('mp'))return;
-  $b('mpPlay').onclick=()=>{userTouched=true;togglePlay()};$b('mpPrev').onclick=mpRestart;$b('mpNext').onclick=mpRestart;
+  $b('mpPlay').onclick=()=>{userTouched=true;const was=isPlaying();togglePlay();userTouchedPause=was};$b('mpPrev').onclick=mpRestart;$b('mpNext').onclick=mpRestart;
   const tg=(id,cb)=>{const e=$b(id);e.onclick=()=>{const v=!e.classList.contains('on');e.classList.toggle('on',v);e.setAttribute('aria-pressed',v);if(cb)cb(v)}};
   tg('mpShuf');tg('mpHeart');tg('mpRep',v=>{mpLoop=v;if(audio)audio.loop=v});
   $b('mpBar').onclick=e=>{const r=e.currentTarget.getBoundingClientRect();mpSeek(Math.min(1,Math.max(0,(e.clientX-r.left)/r.width)))};
